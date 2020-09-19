@@ -1,0 +1,294 @@
+using MS.qcs.QueryAnalysis.Common;
+using MS.qcs.QueryAnalysis.Processing;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Threading;
+using System.IO;
+
+namespace QASDOTNET
+{
+    class Program
+    {
+
+        static void Main(string[] args)
+        {
+            using (var qcs = new QueryClassificationProcessing(@"C:\Users\Dell\Downloads\TechClassifiers_16042020", @"techClassifiersv2", "myQASModel"))
+            {
+
+                //var domainName = "TechParser";
+                QueryContext queryContext = new QueryContext();
+                string final = "";
+                //string querytext = "How to order a product from Amazon";
+                //Query query = new Query(queryContext, querytext);
+                //AnalyzedQuery aq = qcs.AnalyzeQuery(query);
+                //Console.WriteLine(querytext);//write the query
+                //Console.WriteLine("Query above");
+                //Console.WriteLine("Number of words in query:"+querytext.Trim().Split(' ').Count());//write number of words in the query
+                //Console.WriteLine(GetEntities(aq, "TechParser"));//write entities in the query
+                string qactionSyns = string.Empty;
+                String text = System.IO.File.ReadAllText(@"C:\Users\Dell\Downloads\TranslateTest.txt");//read from a file
+                //System.IO.File.WriteAllText(@"C:\Users\Shalini\Documents\WriteText", text);
+                char[] whitespace = new char[] { '\n' };
+                string[] ssizes = text.Split(whitespace);// Array of sentences in the file
+                                                         //System.Console.WriteLine(ssizes[0]);
+                                                         //GetEntities(aq, "TechParser");
+                                                         //GetActions_NoSyn(aq, "TechActionClassifierV2", out qactionSyns);
+                                                         //Console.WriteLine(qactionSyns);
+
+                for (int j = 0; j < ssizes.Length; j = j + 1)
+                {
+                    string querytext = ssizes[j].ToLower();
+                    Query query = new Query(queryContext, querytext);
+                    AnalyzedQuery aq = qcs.AnalyzeQuery(query);
+                    final = final + GetEntities(aq, "TechParser");
+                }
+                System.IO.File.WriteAllText(@"C:\Users\Dell\Downloads\5kTestingQueries.txt", final);
+                Console.ReadKey();
+            }
+        }
+
+        private static string GetEntities(AnalyzedQuery aq, string domainName)
+        {
+            Domain domain = null;
+            bool flag = aq.TryGetDomain(domainName, out domain);
+            //int last=0; //1 for action, 2 for entity, 3 for ignore
+            int entity1 = 0;//number of entities
+            int action = 0;//number of actions
+            int ignore = 0;//number of actions
+            string res = "";//hold ultimate tags and numbers
+            string txt = "";//hold the actual query
+            int num = 0;
+            //string fileName = @"WriteText.txt";
+            /*using (StreamWriter fileStr = File.CreateText(fileName))
+            {
+                fileStr.WriteLine(" Results");
+            }*/
+            int c = 0;
+            HashSet<string> metadatas = new HashSet<string>(StringComparer.Ordinal);
+            if (flag)
+            {
+                foreach (var parse in domain.GetQueryParses() ?? Enumerable.Empty<QueryParse>())
+                {
+                    //Console.WriteLine(parse.GetQueryEntities().Count());
+                    foreach (var entity in parse.GetQueryEntities() ?? Enumerable.Empty<QueryEntity>())
+                    {
+                        c = c + 1;
+
+                        string word = entity.TextString;//actual word
+                        txt = txt + word + " ";
+                        //num = num + 1;
+                        if (String.IsNullOrWhiteSpace(entity.EntityNameString) ||
+                           entity.EntityNameString.Equals("SourceEntity") ||
+                           entity.EntityNameString.Equals("DestEntity"))
+                        {
+                            continue;
+                        }
+                      //  if (c == parse.GetQueryEntities().Count())
+                         //   continue;
+                        if (entity.EntityNameString.Equals("action"))
+                        {
+                            action += 1;
+                            char[] whitespace = new char[] { ' ', '\t' };
+                            string[] array = word.Split(whitespace);
+                            int l = array.Length;
+                            res = res + "B-action ";
+                            if (l > 1)
+                                for (int j = 1; j <= (l - 1); j = j + 1)
+                                    if (String.IsNullOrWhiteSpace(array[j]))
+                                        continue;
+                                    else
+                                        res = res + "I-action ";
+                        }
+                        if (entity.EntityNameString.Equals("entity"))
+                        {
+                            entity1 += 1;
+                            char[] whitespace = new char[] { ' ', '\t' };
+                            string[] array = word.Split(whitespace);
+                            int l = array.Length;
+                            res = res + "B-entity ";
+                            if (l > 1)
+                                for (int j = 1; j <= (l - 1); j = j + 1)
+                                    if (String.IsNullOrWhiteSpace(array[j]))
+                                        continue;
+                                    else
+                                        res = res + "I-entity ";
+                        }
+                        if (entity.EntityNameString != "action" && entity.EntityNameString != "entity")
+                        {
+                            //Console.WriteLine(entity.EntityNameString);
+                            //Console.WriteLine(word);
+                            ignore += 1;
+                            char[] whitespace = new char[] { ' ', '\t', '\n' };
+                            string[] array = word.Split(whitespace);
+                            int l = array.Length;
+                            //res = res + "B-action\t";
+                            //if (l > 1)
+                            for (int j = 0; j < l; j = j + 1)
+                                if (String.IsNullOrWhiteSpace(array[j]))
+                                    continue;
+                                else
+                                    res = res + "O ";
+                            //Console.WriteLine($"{m} O");
+                            //Console.WriteLine("O");
+                            //last = 3;
+                        }
+
+                        //if (String.Equals(entity.EntityNameString,"" ))
+                        //Console.WriteLine();
+                        //else
+                        //Console.WriteLine();
+                        var entityMetadata = entity.GetAllMetadata();
+
+                        if (entityMetadata != null && entityMetadata.Count > 0)
+                        {
+                            string canonicalEntityName = ParseEntityMetadata(entityMetadata);
+                            if (!String.IsNullOrWhiteSpace(canonicalEntityName))
+                            {
+                                metadatas.Add(canonicalEntityName);
+                            }
+                        }
+                    }
+                    //Console.WriteLine($"No of entities: {entity1}");
+                    //Console.WriteLine($"No of actions: {action}" );
+                    //Console.WriteLine($"No of ignores: {ignore}" );
+                    res = res + "\t";
+                    num = txt.Trim().Split(' ').Count() - 1;
+                    string tmp = num.ToString();
+                    res = res + tmp + " ";
+                    tmp = entity1.ToString();
+                    res = res + tmp + " ";
+                    tmp = action.ToString();
+                    res = res + tmp + " ";
+                    tmp = ignore.ToString();
+                    res = res + tmp;
+                    txt = txt + "\t\t\t" + res + "\n";
+                    Console.WriteLine(txt);
+
+                    //File.AppendAllLines(@"C:\Users\Shalini\Documents\WriteText.txt", txt);
+                    //System.IO.File.WriteAllText(@"C:\Users\Shalini\Documents\WriteText", txt);
+                }
+            }
+            return txt;
+            //return string.Join(";", metadatas);
+        }
+
+        public static string ParseEntityMetadata(List<Metadata> allMetadata)
+        {
+            string canonicalEntityName = string.Empty;
+            foreach (var metadata in allMetadata)
+            {
+                string metadataString = ((MetadataItem)metadata).ValueString;
+                if (!string.IsNullOrWhiteSpace(metadataString))
+                {
+                    metadataString = metadataString.ToLower();
+                    var entitySubComponents = metadataString.Split('.').ToList();
+                    if (entitySubComponents.Count > 0)
+                    {
+                        canonicalEntityName = entitySubComponents[entitySubComponents.Count - 1].Trim();
+                    }
+
+                    if (!String.IsNullOrWhiteSpace(metadata.TypeNameString) &&
+                                    metadata.TypeNameString.Equals("LatestEntity"))
+                    {
+                        break;
+                    }
+                }
+            }
+
+            return canonicalEntityName;
+
+        }
+
+        private static HashSet<string> GetActions_NoSyn(AnalyzedQuery aq, string QASdomain, out string qactionSynonyms)
+        {
+            HashSet<string> listOfCanonicalActionWords = new HashSet<string>(StringComparer.Ordinal);
+            HashSet<string> listOfCanonicalActionSynonyms = new HashSet<string>(StringComparer.Ordinal);
+            qactionSynonyms = String.Empty;
+            if (aq != null)
+            {
+                try
+                {
+                    var domain = aq.GetDomain(QASdomain);
+
+                    if (QASdomain.Contains("V2"))
+                    {
+                        foreach (var parse in domain.GetQueryParses() ?? Enumerable.Empty<QueryParse>())
+                        {
+                            foreach (var entity in parse.GetQueryEntities() ?? Enumerable.Empty<QueryEntity>())
+                            {
+                                if (String.IsNullOrWhiteSpace(entity.EntityNameString) || !entity.EntityNameString.Equals("Action"))
+                                {
+                                    continue;
+                                }
+
+                                foreach (var metadata in entity.GetAllMetadata() ?? Enumerable.Empty<Metadata>())
+                                {
+                                    string actionString = ((MetadataItem)metadata).ValueString;
+                                    var metadataDict = GetMetadataDictionary(actionString);
+
+                                    string canonicalAction = null;
+                                    if (metadataDict != null && metadataDict.TryGetValue("Canonical_Term", out canonicalAction) && canonicalAction != null)
+                                    {
+                                        listOfCanonicalActionWords.Add(canonicalAction);
+                                    }
+
+                                    string actionSyns = null;
+                                    if (metadataDict != null && metadataDict.TryGetValue("Canonical_Synonym", out actionSyns) && actionSyns != null)
+                                    {
+                                        listOfCanonicalActionSynonyms.Add(actionSyns);
+                                    }
+                                }
+                            }
+                        }
+
+                        qactionSynonyms = string.Join(";", listOfCanonicalActionSynonyms.ToList());
+                    }
+                    else
+                    {
+                        foreach (var queryParse in domain.QueryParses)
+                        {
+                            foreach (var entity in queryParse.GetQueryEntities())
+                            {
+                                string actionWord = entity.TextString;
+                                listOfCanonicalActionWords.Add(actionWord);
+                            }
+                        }
+                    }
+
+                    return listOfCanonicalActionWords;
+
+                }
+                catch (Exception e)
+                {
+                }
+            }
+
+            return listOfCanonicalActionWords;
+
+        }
+
+        private static Dictionary<string, string> GetMetadataDictionary(string metadataStr)
+        {
+            if (string.IsNullOrWhiteSpace(metadataStr) || metadataStr.StartsWith("Adjective:")) return null;
+
+            Dictionary<string, string> metadataDict = new Dictionary<string, string>();
+            metadataStr = metadataStr.Replace("Action:", "");
+
+            foreach (var metadataEntry in metadataStr.Split(';'))
+            {
+                string[] keyValue = metadataEntry.Split(':');
+                if (keyValue.Length == 2)
+                {
+                    metadataDict.Add(keyValue[0], keyValue[1]);
+                }
+            }
+
+            return metadataDict;
+        }
+
+    }
+
+}
