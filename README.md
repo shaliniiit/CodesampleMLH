@@ -55,7 +55,7 @@ The dataset is fed to the CRF+BERT model and the model is tested on separate set
 The model performs better than the existing algo on 90% of the queries tagging words which the algo misses.
 
 Non-English
-Query: "Tour d'abonnement." (French)
+Query: "Tour d'abonnement." (French) 
 English translation:
 "Turn of subscriptions."
 Mapping from englidh to french: 0:3->0:3, 5:6->5:5, 8:20->8:17
